@@ -11,7 +11,8 @@ pub trait WitnessU32<F: PrimeField64>: Witness<F> {
 
 impl<T: Witness<F>, F: PrimeField64> WitnessU32<F> for T {
     fn set_u32_target(&mut self, target: U32Target, value: u32) {
-        self.set_target(target.0, F::from_canonical_u32(value));
+        self.set_target(target.0, F::from_canonical_u32(value))
+            .unwrap();
     }
 
     fn get_u32_target(&self, target: U32Target) -> (u32, u32) {
@@ -29,5 +30,6 @@ pub trait GeneratedValuesU32<F: Field> {
 impl<F: Field> GeneratedValuesU32<F> for GeneratedValues<F> {
     fn set_u32_target(&mut self, target: U32Target, value: u32) {
         self.set_target(target.0, F::from_canonical_u32(value))
+            .expect("Failed to set target");
     }
 }
