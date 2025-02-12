@@ -2,18 +2,52 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::{format, vec};
 use core::marker::PhantomData;
-use plonky2::util::serialization::{Buffer, IoResult, Read, Write};
+use plonky2::gadgets::arithmetic::EqualityGenerator;
+use plonky2::gadgets::arithmetic_extension::QuotientGeneratorExtension;
+use plonky2::gadgets::range_check::LowHighGenerator;
+use plonky2::gadgets::split_base::BaseSumGenerator;
+use plonky2::gadgets::split_join::{SplitGenerator, WireSplitGenerator};
+use plonky2::gates::arithmetic_base::{ArithmeticBaseGenerator, ArithmeticGate};
+use plonky2::gates::base_sum::{BaseSplitGenerator, BaseSumGate};
+use plonky2::gates::constant::ConstantGate;
+use plonky2::gates::coset_interpolation::{CosetInterpolationGate, InterpolationGenerator};
+use plonky2::gates::exponentiation::{ExponentiationGate, ExponentiationGenerator};
+use plonky2::gates::lookup::{LookupGate, LookupGenerator};
+use plonky2::gates::lookup_table::{LookupTableGate, LookupTableGenerator};
+use plonky2::gates::noop::NoopGate;
+use plonky2::gates::poseidon::{PoseidonGate, PoseidonGenerator};
+use plonky2::gates::poseidon_mds::{PoseidonMdsGate, PoseidonMdsGenerator};
+use plonky2::gates::public_input::PublicInputGate;
+use plonky2::gates::random_access::{RandomAccessGate, RandomAccessGenerator};
+use plonky2::gates::reducing::{ReducingGate, ReducingGenerator};
+use plonky2::gates::reducing_extension::{
+    ReducingExtensionGate, ReducingGenerator as ReducingExtensionGenerator,
+};
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
+use plonky2::read_gate_impl;
+use plonky2::recursion::dummy_circuit::DummyProofGenerator;
+use plonky2::util::serialization::{
+    Buffer, GateSerializer, IoResult, Read, WitnessGeneratorSerializer, Write,
+};
+use plonky2::{impl_gate_serializer, impl_generator_serializer};
 
 use itertools::unfold;
 use plonky2::field::extension::Extendable;
 use plonky2::field::packed::PackedField;
 use plonky2::field::types::Field;
+use plonky2::gates::arithmetic_extension::{ArithmeticExtensionGate, ArithmeticExtensionGenerator};
 use plonky2::gates::gate::Gate;
+use plonky2::gates::multiplication_extension::{MulExtensionGate, MulExtensionGenerator};
 use plonky2::gates::packed_util::PackedEvaluableBase;
 use plonky2::gates::util::StridedConstraintConsumer;
+use plonky2::get_gate_tag_impl;
+use plonky2::get_generator_tag_impl;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::ext_target::ExtensionTarget;
-use plonky2::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGeneratorRef};
+use plonky2::iop::generator::{
+    ConstantGenerator, CopyGenerator, GeneratedValues, NonzeroTestGenerator, RandomValueGenerator,
+    SimpleGenerator, WitnessGeneratorRef,
+};
 use plonky2::iop::target::Target;
 use plonky2::iop::wire::Wire;
 use plonky2::iop::witness::{PartitionWitness, Witness, WitnessWrite};
@@ -23,9 +57,12 @@ use plonky2::plonk::vars::{
     EvaluationTargets, EvaluationVars, EvaluationVarsBase, EvaluationVarsBaseBatch,
     EvaluationVarsBasePacked,
 };
+use plonky2::read_generator_impl;
+
+use crate::gadgets::arithmetic_u32::SplitToU32Generator;
 
 /// A gate to perform a basic mul-add on 32-bit values (we assume they are range-checked beforehand).
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct U32ArithmeticGate<F: RichField + Extendable<D>, const D: usize> {
     pub num_ops: usize,
     _phantom: PhantomData<F>,
@@ -351,8 +388,8 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
     }
 }
 
-#[derive(Clone, Debug)]
-struct U32ArithmeticGenerator<F: RichField + Extendable<D>, const D: usize> {
+#[derive(Clone, Debug, Default)]
+pub struct U32ArithmeticGenerator<F: RichField + Extendable<D>, const D: usize> {
     gate: U32ArithmeticGate<F, D>,
     row: usize,
     i: usize,
@@ -450,6 +487,73 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F, D>
             i,
             _phantom: PhantomData,
         })
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct U32GeneratorSerializer<C: GenericConfig<D>, const D: usize> {
+    pub _phantom: PhantomData<C>,
+}
+
+impl<F, C, const D: usize> WitnessGeneratorSerializer<F, D> for U32GeneratorSerializer<C, D>
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F> + 'static,
+    C::Hasher: AlgebraicHasher<F>,
+{
+    impl_generator_serializer! {
+        DefaultGeneratorSerializer,
+        ArithmeticBaseGenerator<F, D>,
+        ArithmeticExtensionGenerator<F, D>,
+        BaseSplitGenerator<2>,
+        BaseSumGenerator<2>,
+        ConstantGenerator<F>,
+        CopyGenerator,
+        DummyProofGenerator<F, C, D>,
+        EqualityGenerator,
+        ExponentiationGenerator<F, D>,
+        InterpolationGenerator<F, D>,
+        LookupGenerator,
+        LookupTableGenerator,
+        LowHighGenerator,
+        MulExtensionGenerator<F, D>,
+        NonzeroTestGenerator,
+        PoseidonGenerator<F, D>,
+        PoseidonMdsGenerator<D>,
+        QuotientGeneratorExtension<D>,
+        RandomAccessGenerator<F, D>,
+        RandomValueGenerator,
+        ReducingGenerator<D>,
+        ReducingExtensionGenerator<D>,
+        SplitGenerator,
+        SplitToU32Generator<F,D>,
+        WireSplitGenerator,
+        U32ArithmeticGenerator<F,D>
+    }
+}
+
+#[derive(Debug)]
+pub struct U32GateSerializer;
+impl<F: RichField + Extendable<D>, const D: usize> GateSerializer<F, D> for U32GateSerializer {
+    impl_gate_serializer! {
+        DefaultGateSerializer,
+        ArithmeticGate,
+        ArithmeticExtensionGate<D>,
+        BaseSumGate<2>,
+        ConstantGate,
+        CosetInterpolationGate<F, D>,
+        ExponentiationGate<F, D>,
+        LookupGate,
+        LookupTableGate,
+        MulExtensionGate<D>,
+        NoopGate,
+        PoseidonMdsGate<F, D>,
+        PoseidonGate<F, D>,
+        PublicInputGate,
+        RandomAccessGate<F, D>,
+        ReducingExtensionGate<D>,
+        ReducingGate<D>,
+        U32ArithmeticGate<F,D>
     }
 }
 
