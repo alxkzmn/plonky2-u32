@@ -18,7 +18,7 @@ use crate::gates::subtraction_u32::U32SubtractionGate;
 use crate::serialization::{ReadU32, WriteU32};
 use crate::witness::GeneratedValuesU32;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct U32Target(pub Target);
 
 pub trait CircuitBuilderU32<F: RichField + Extendable<D>, const D: usize> {
@@ -234,8 +234,8 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilderU32<F, D>
     }
 }
 
-#[derive(Debug)]
-struct SplitToU32Generator<F: RichField + Extendable<D>, const D: usize> {
+#[derive(Debug, Default)]
+pub struct SplitToU32Generator<F: RichField + Extendable<D>, const D: usize> {
     x: Target,
     low: U32Target,
     high: U32Target,
